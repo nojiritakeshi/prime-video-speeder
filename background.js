@@ -1,17 +1,17 @@
 // background.js - Amazon Prime Video Playback Speed Controller
 
-// Listen for messages from content scripts
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // Handle the openPopup action from the content script
-  if (request.action === 'openPopup') {
-    // Open the popup programmatically
-    chrome.action.openPopup();
-    sendResponse({ status: 'success' });
-  }
-  return true; // Keep the message channel open for async responses
-});
-
 // When the extension is installed or updated
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Amazon Prime Video Playback Speed Controller installed/updated');
+});
+
+// When the extension icon is clicked in the toolbar
+chrome.action.onClicked.addListener((tab) => {
+  // Send a message to the content script to check for the player
+  chrome.tabs.sendMessage(tab.id, { action: 'checkPlayer' }, (response) => {
+    // Handle any errors (e.g., if the content script isn't loaded yet)
+    if (chrome.runtime.lastError) {
+      console.error('Error:', chrome.runtime.lastError);
+    }
+  });
 });
