@@ -11,5 +11,15 @@
   ],
   "host_permissions": [
     "<all_urls>"
-  ]
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.amazon.co.jp/*", "*://*.amazon.com/*/video/*"],
+      "js": ["content.js", "index.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }

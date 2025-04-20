@@ -1,69 +1,93 @@
-// popup.js
+// popup.js - Amazon Prime Video Playback Speed Controller
 
-// DOMの読み込み完了時に初期処理を実施
+// Function to get the current active tab
+async function getCurrentTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
+// Function to get the current playback speed from the content script
+async function getPlaybackSpeed() {
+  try {
+    const tab = await getCurrentTab();
+    return new Promise((resolve) => {
+      chrome.tabs.sendMessage(tab.id, { action: "getSpeed" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("Error getting speed:", chrome.runtime.lastError);
+          resolve(1.0); // Default to 1.0 if there's an error
+        } else if (response && response.status === 'success') {
+          resolve(response.speed);
+        } else {
+          resolve(1.0); // Default to 1.0 if response is invalid
+        }
+      });
+    });
+  } catch (error) {
+    console.error("Failed to get playback speed:", error);
+    return 1.0; // Default to 1.0 if there's an error
+  }
+}
+
+// Function to set the playback speed via the content script
+async function setPlaybackSpeed(speed) {
+  try {
+    const tab = await getCurrentTab();
+    return new Promise((resolve) => {
+      chrome.tabs.sendMessage(tab.id, { action: "setSpeed", speed: speed }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("Error setting speed:", chrome.runtime.lastError);
+          resolve(false);
+        } else if (response && response.status === 'success') {
+          console.log(`再生速度を ${speed} 倍に設定しました。`);
+          resolve(true);
+        } else {
+          console.error("Failed to set speed:", response?.message || "Unknown error");
+          resolve(false);
+        }
+      });
+    });
+  } catch (error) {
+    console.error("Failed to set playback speed:", error);
+    return false;
+  }
+}
+
+// Initialize the popup when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', async () => {
   const slider = document.getElementById('speedSlider');
   const speedDisplay = document.getElementById('currentSpeed');
 
-  // スライダー操作時に表示の数値を更新
+  // Update the displayed value when the slider is moved
   slider.addEventListener('input', () => {
     speedDisplay.textContent = parseFloat(slider.value).toFixed(2);
   });
 
-  // 現在のアクティブタブを取得
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-  // ページ内の最初の動画要素の再生速度を取得してスライダーに反映
+  // Get the current playback speed and update the slider
   try {
-    const injectionResults = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      function: getCurrentPlaybackSpeed
-    });
-    const speed = injectionResults[0].result;
-    if (speed !== null && speed !== undefined) {
-      slider.value = speed;
-      speedDisplay.textContent = parseFloat(speed).toFixed(2);
-    }
+    const currentSpeed = await getPlaybackSpeed();
+    slider.value = currentSpeed;
+    speedDisplay.textContent = parseFloat(currentSpeed).toFixed(2);
   } catch (error) {
-    console.error("再生速度の取得に失敗しました:", error);
+    console.error("Failed to initialize speed:", error);
   }
 
-  // 「設定」ボタン押下時の処理
+  // Set the playback speed when the button is clicked
   document.getElementById('setSpeed').addEventListener('click', async () => {
     const speed = parseFloat(slider.value);
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      function: setPlaybackSpeed,
-      args: [speed]
-    });
+    const success = await setPlaybackSpeed(speed);
+    
+    if (success) {
+      // Provide visual feedback that the speed was set
+      const button = document.getElementById('setSpeed');
+      const originalText = button.textContent;
+      button.textContent = '✓ 設定完了';
+      button.style.backgroundColor = '#28a745';
+      
+      // Reset the button after a short delay
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.backgroundColor = '';
+      }, 1500);
+    }
   });
 });
-
-/**
- * ページ内で実行される関数
- * ページ内の最初の動画要素の再生速度を返します。
- */
-function getCurrentPlaybackSpeed() {
-  const video = document.querySelector('video');
-  if (video) {
-    return video.playbackRate;
-  }
-  return null;
-}
-
-/**
- * ページ内で実行される関数
- * ページ内のすべての動画要素の再生速度を指定された speed に設定します。
- */
-function setPlaybackSpeed(speed) {
-  const videos = document.getElementsByTagName('video');
-  if (videos.length === 0) {
-    console.warn("このページには動画要素が見つかりませんでした。");
-    return;
-  }
-  for (const video of videos) {
-    video.playbackRate = speed;
-  }
-  console.log(`動画の再生速度を ${speed} 倍に設定しました。`);
-}

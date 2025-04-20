@@ -1,34 +1,66 @@
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  if (request.action === "setSpeed") {
-    const setVideoSpeed = (speed) => {
-      const videoElements = document.querySelectorAll("video");
-      if (videoElements.length > 1) {
-        const videoElement = videoElements[1];
-        videoElement.playbackRate = speed;
-        console.log("再生速度を", speed, "に設定しました");
-        sendResponse({ status: 'success', newSpeed: speed });
-      } else {
-        console.error("動画要素が見つかりません。");
-        sendResponse({ status: 'error', message: '動画要素が見つからない' });
-      }
-    };
+// content.js - Amazon Prime Video Playback Speed Controller
 
-    // MutationObserverを使用して動画要素の追加を監視
-    const observer = new MutationObserver(() => {
-      const videoElements = document.querySelectorAll("video");
-      if (videoElements.length > 1) {
-        setVideoSpeed(request.speed);
-        observer.disconnect(); // 監視を停止
-      }
-    });
-
-    // DOMの変化を監視
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    // 初回チェック
-    setVideoSpeed(request.speed);
+// Function to set the playback speed of video elements
+function setVideoSpeed(speed) {
+  const videoElements = document.querySelectorAll("video");
+  if (videoElements.length > 0) {
+    // Prime Video sometimes has multiple video elements, try to find the main one
+    // Usually the main video is either the only one or the second one (index 1)
+    const mainVideo = videoElements.length > 1 ? videoElements[1] : videoElements[0];
     
-    // 非同期でsendResponseを利用するため、trueを返して通信チャネルを維持
-    return true;
+    // Set the playback rate
+    mainVideo.playbackRate = speed;
+    console.log("再生速度を", speed, "に設定しました");
+    return { status: 'success', newSpeed: speed };
+  } else {
+    console.error("動画要素が見つかりません。");
+    return { status: 'error', message: '動画要素が見つからない' };
   }
-}); 
+}
+
+// Function to get the current playback speed
+function getCurrentPlaybackSpeed() {
+  const videoElements = document.querySelectorAll("video");
+  if (videoElements.length > 0) {
+    const mainVideo = videoElements.length > 1 ? videoElements[1] : videoElements[0];
+    return mainVideo.playbackRate;
+  }
+  return 1.0; // Default speed if no video is found
+}
+
+// Listen for messages from the popup or background script
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  // Handle setSpeed action
+  if (request.action === "setSpeed") {
+    // Use MutationObserver to wait for video elements if they don't exist yet
+    if (document.querySelectorAll("video").length === 0) {
+      const observer = new MutationObserver(() => {
+        const videoElements = document.querySelectorAll("video");
+        if (videoElements.length > 0) {
+          const result = setVideoSpeed(request.speed);
+          sendResponse(result);
+          observer.disconnect(); // Stop observing once we've found video elements
+        }
+      });
+      
+      // Observe the DOM for changes
+      observer.observe(document.body, { childList: true, subtree: true });
+      
+      // Return true to indicate we'll respond asynchronously
+      return true;
+    } else {
+      // Video elements already exist, set speed immediately
+      const result = setVideoSpeed(request.speed);
+      sendResponse(result);
+    }
+  }
+  
+  // Handle getSpeed action
+  else if (request.action === "getSpeed") {
+    const currentSpeed = getCurrentPlaybackSpeed();
+    sendResponse({ status: 'success', speed: currentSpeed });
+  }
+  
+  // Return true for async response
+  return true;
+});
