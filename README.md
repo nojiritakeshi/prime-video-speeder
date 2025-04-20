@@ -9,6 +9,9 @@ A Chrome extension that allows you to control the playback speed of HTML5 video 
 - **Automatic Detection:** On popup load, the extension automatically reads the current playback speed from the webpage.
 - **Easy to Use:** Simply adjust the slider to your desired speed and click the "Set" button to apply the changes to all video elements on the page.
 
+<img width="194" alt="image" src="https://github.com/user-attachments/assets/3df7d36a-c54e-4518-9e39-2dea4441f1e6" />
+
+
 ## Files
 
 - **manifest.json**  
